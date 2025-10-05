@@ -5,3 +5,10 @@ Cargo.lock
 # Platform specific
 .DS_Store
 Thumbs.db
+# Web build outputs (built by CI for GitHub Pages)
+dist/
+docs/
+# Trunk cache
+.trunk/
+# Wasm-pack defaults
+pkg/

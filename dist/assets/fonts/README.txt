@@ -1,1 +1,0 @@
-Place FiraSans-Bold.ttf (or any desired font) here. The game will try to load fonts/FiraSans-Bold.ttf.
