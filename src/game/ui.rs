@@ -28,9 +28,14 @@ struct LevelText;
 #[derive(Component)]
 struct FpsText;
 
+// Tracks cumulative flame speed multiplier so newly spawned flames match existing upgrades
+#[derive(Resource, Deref, DerefMut)]
+struct FlameSpeedBuff(f32);
+
 impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(OnEnter(GameState::Playing), setup_hud)
+        app.insert_resource(FlameSpeedBuff(1.0))
+            .add_systems(OnEnter(GameState::Playing), setup_hud)
             .add_systems(OnEnter(GameState::LevelUp), levelup_spawn_overlay_now)
             .add_systems(OnExit(GameState::LevelUp), levelup_cleanup_overlay)
             .add_systems(Update, (
@@ -295,6 +300,7 @@ fn levelup_handle_buttons(
     player_assets: Res<crate::game::assets::PlayerAssets>,
     mut aura_timer: ResMut<AuraTickTimer>,
     root_q: Query<Entity, With<HudRoot>>,
+    mut flame_speed: ResMut<FlameSpeedBuff>,
 ) {
     // Option 1: +5 aura damage
     for interaction in q_more_damage.iter() {
@@ -317,7 +323,9 @@ fn levelup_handle_buttons(
             if let Ok(player_entity) = player_q.get_single() {
                 commands.entity(player_entity).with_children(|p| {
                     let angle = 0.0;
-                    p.spawn((PlayerAura, OrbitingFlame { angle, radius: cfg.radius, speed: 1.8, contact_radius: 16.0, contact_damage: 5.0 }, SpriteBundle {
+                    // Ensure new flame speed matches existing upgrades via FlameSpeedBuff
+                    let base_speed = 1.8 * **flame_speed;
+                    p.spawn((PlayerAura, OrbitingFlame { angle, radius: cfg.radius, speed: base_speed, contact_radius: 16.0, contact_damage: 5.0 }, SpriteBundle {
                         texture: player_assets.flame.clone(),
                         sprite: Sprite { color: Color::rgba(1.0, 1.0, 1.0, 0.0), custom_size: Some(Vec2::splat(32.0)), ..default() },
                         transform: Transform::from_xyz(angle.cos() * cfg.radius, angle.sin() * cfg.radius, 0.0),
@@ -349,6 +357,8 @@ fn levelup_handle_buttons(
             for mut of in flames_q.iter_mut() {
                 of.speed *= 1.20;
             }
+            // Update global buff so future flames inherit the current speed multiplier
+            **flame_speed *= 1.20;
             // Also decrease aura damage tick interval by 20% (faster ticks), with a reasonable floor
             let current = aura_timer.duration_secs();
             let new = (current * 0.8).max(0.05);
