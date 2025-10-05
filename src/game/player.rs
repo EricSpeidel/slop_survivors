@@ -125,14 +125,10 @@ fn player_movement(
             if let Some(cursor_pos) = pointer_phys {
                 if let Ok((camera, cam_tf)) = camera_q.get_single() {
                     if let Some(world_pos) = camera.viewport_to_world_2d(cam_tf, cursor_pos) {
-                        let player_pos = tf.translation.truncate();
-                        let to_target = world_pos - player_pos;
-                        if to_target.length_squared() > 1.0 { // small deadzone
-                            let dir = to_target.normalize();
-                            tf.translation.x += dir.x * **speed * time.delta_seconds();
-                            tf.translation.y += dir.y * **speed * time.delta_seconds();
-                            moved_by_pointer = true;
-                        }
+                        // Snap directly to the pointer/touch world position to remove any perceived offset
+                        tf.translation.x = world_pos.x;
+                        tf.translation.y = world_pos.y;
+                        moved_by_pointer = true;
                     }
                 }
             }
