@@ -111,8 +111,11 @@ fn player_movement(
         // 1) Pointer follow: prefer active touch if present, else mouse cursor
         let mut moved_by_pointer = false;
         if let Ok(window) = windows.get_single() {
-            let screen_pos = if touch.active { touch.position } else { window.cursor_position() };
-            if let Some(cursor_pos) = screen_pos {
+            let screen_pos_logical = if touch.active { touch.position } else { window.cursor_position() };
+            if let Some(mut cursor_pos) = screen_pos_logical {
+                // Bevy 0.13 camera.viewport_to_world_2d expects PHYSICAL pixel coords; convert from logical using scale factor
+                let sf = window.resolution.scale_factor() as f32;
+                cursor_pos *= sf;
                 if let Ok((camera, cam_tf)) = camera_q.get_single() {
                     if let Some(world_pos) = camera.viewport_to_world_2d(cam_tf, cursor_pos) {
                         let player_pos = tf.translation.truncate();
