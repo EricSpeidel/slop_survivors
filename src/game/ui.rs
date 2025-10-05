@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
+use bevy::window::PrimaryWindow;
 
 use super::player::PlayerStats;
 use super::states::GameState;
@@ -27,6 +28,12 @@ struct XpText;
 struct LevelText;
 #[derive(Component)]
 struct FpsText;
+#[derive(Component)]
+struct LevelUpText;
+#[derive(Component)]
+struct LevelUpHeaderText;
+#[derive(Component)]
+struct LevelUpChoiceText;
 
 // Tracks cumulative flame speed multiplier so newly spawned flames match existing upgrades
 #[derive(Resource, Deref, DerefMut)]
@@ -45,6 +52,7 @@ impl Plugin for UiPlugin {
                 show_game_over_overlay.run_if(in_state(GameState::GameOver)),
                 levelup_show_overlay.run_if(in_state(GameState::LevelUp)),
                 levelup_handle_buttons.run_if(in_state(GameState::LevelUp)),
+                responsive_levelup_overlay.run_if(in_state(GameState::LevelUp)),
             ));
     }
 }
@@ -244,10 +252,10 @@ fn spawn_levelup_overlay(mut commands: Commands, root_entity: Entity) {
             background_color: BackgroundColor(Color::rgba(0.0, 0.0, 0.0, 0.86)),
             ..default()
         })).with_children(|p| {
-            p.spawn(TextBundle::from_section(
+            p.spawn((LevelUpText, LevelUpHeaderText, TextBundle::from_section(
                 "Level Up! Choose an upgrade:",
                 TextStyle { font: default(), font_size: 22.0, color: Color::YELLOW }
-            ));
+            )));
             // Buttons
             let button_style = Style { width: Val::Px(480.0), height: Val::Px(44.0), ..default() };
             p.spawn((BtnMoreDamage, ButtonBundle {
@@ -255,30 +263,30 @@ fn spawn_levelup_overlay(mut commands: Commands, root_entity: Entity) {
                 background_color: BackgroundColor(Color::rgb(0.32, 0.12, 0.12)),
                 ..default()
             })).with_children(|b| {
-                b.spawn(TextBundle::from_section(
+                b.spawn((LevelUpText, LevelUpChoiceText, TextBundle::from_section(
                     "+5 Aura Damage",
                     TextStyle { font: default(), font_size: 18.0, color: Color::WHITE }
-                ));
+                )));
             });
             p.spawn((BtnMoreFlame, ButtonBundle {
                 style: button_style.clone(),
                 background_color: BackgroundColor(Color::rgb(0.12, 0.32, 0.12)),
                 ..default()
             })).with_children(|b| {
-                b.spawn(TextBundle::from_section(
+                b.spawn((LevelUpText, LevelUpChoiceText, TextBundle::from_section(
                     "+1 Flame",
                     TextStyle { font: default(), font_size: 18.0, color: Color::WHITE }
-                ));
+                )));
             });
             p.spawn((BtnFasterFlames, ButtonBundle {
                 style: button_style,
                 background_color: BackgroundColor(Color::rgb(0.12, 0.12, 0.32)),
                 ..default()
             })).with_children(|b| {
-                b.spawn(TextBundle::from_section(
+                b.spawn((LevelUpText, LevelUpChoiceText, TextBundle::from_section(
                     "+20% Flame Speed (and tick)",
                     TextStyle { font: default(), font_size: 18.0, color: Color::WHITE }
-                ));
+                )));
             });
         });
     });
@@ -385,4 +393,26 @@ fn update_fps_text(
             }
         }
     }
+}
+
+fn responsive_levelup_overlay(
+    windows: Query<&Window, With<PrimaryWindow>>,
+    mut overlay_q: Query<&mut Style, With<LevelUpOverlay>>,
+    mut button_q: Query<&mut Style, (With<Button>, Or<(With<BtnMoreDamage>, With<BtnMoreFlame>, With<BtnFasterFlames>)>, Without<LevelUpOverlay>)>,
+    mut header_q: Query<&mut Text, (With<LevelUpHeaderText>, Without<LevelUpChoiceText>)>,
+    mut choice_q: Query<&mut Text, (With<LevelUpChoiceText>, Without<LevelUpHeaderText>)>,
+) {
+    let Ok(window) = windows.get_single() else { return; };
+    let width = window.resolution.width();
+    let (overlay_w, button_h, header_fs, choice_fs, button_w): (Val, f32, f32, f32, Val) = if width < 520.0 {
+        (Val::Percent(95.0), 36.0, 18.0, 14.0, Val::Percent(100.0))
+    } else if width < 820.0 {
+        (Val::Percent(80.0), 40.0, 20.0, 16.0, Val::Percent(100.0))
+    } else {
+        (Val::Px(520.0), 44.0, 22.0, 18.0, Val::Px(480.0))
+    };
+    if let Ok(mut style) = overlay_q.get_single_mut() { style.width = overlay_w; }
+    for mut s in button_q.iter_mut() { s.width = button_w; s.height = Val::Px(button_h); }
+    if let Ok(mut t) = header_q.get_single_mut() { t.sections[0].style.font_size = header_fs; }
+    for mut t in choice_q.iter_mut() { t.sections[0].style.font_size = choice_fs; }
 }
