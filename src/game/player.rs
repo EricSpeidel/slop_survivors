@@ -4,6 +4,7 @@ use super::states::GameState;
  
 use bevy::asset::AssetServer;
 use bevy::window::PrimaryWindow;
+use bevy::input::touch::{TouchInput, TouchPhase};
 
 pub struct PlayerPlugin;
 
@@ -41,8 +42,10 @@ impl PlayerStats {
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<PlayerStats>()
+            .init_resource::<TouchState>()
             .add_systems(OnEnter(GameState::Playing), spawn_player)
             .add_systems(Update, (
+                touch_capture_system,
                 player_movement,
                 animate_orbiting_flames,
                 sync_flame_radius,
@@ -102,12 +105,14 @@ fn player_movement(
     camera_q: Query<(&Camera, &GlobalTransform)>,
     mut q: Query<(&MoveSpeed, &mut Transform), With<Player>>,
     time: Res<Time>,
+    touch: Res<TouchState>,
 ) {
     if let Some((speed, mut tf)) = q.iter_mut().next() {
-        // 1) Pointer follow if a cursor exists (useful for mobile/touch where browsers map touch to pointer)
+        // 1) Pointer follow: prefer active touch if present, else mouse cursor
         let mut moved_by_pointer = false;
         if let Ok(window) = windows.get_single() {
-            if let Some(cursor_pos) = window.cursor_position() {
+            let screen_pos = if touch.active { touch.position } else { window.cursor_position() };
+            if let Some(cursor_pos) = screen_pos {
                 if let Ok((camera, cam_tf)) = camera_q.get_single() {
                     if let Some(world_pos) = camera.viewport_to_world_2d(cam_tf, cursor_pos) {
                         let player_pos = tf.translation.truncate();
@@ -133,6 +138,31 @@ fn player_movement(
             if dir.length_squared() > 0.0 { dir = dir.normalize(); }
             tf.translation.x += dir.x * **speed * time.delta_seconds();
             tf.translation.y += dir.y * **speed * time.delta_seconds();
+        }
+    }
+}
+
+// Track current touch state (screen-space position and active flag)
+#[derive(Resource, Default)]
+struct TouchState {
+    position: Option<Vec2>,
+    active: bool,
+}
+
+fn touch_capture_system(
+    mut ev_touch: EventReader<TouchInput>,
+    mut state: ResMut<TouchState>,
+) {
+    for ev in ev_touch.read() {
+        match ev.phase {
+            TouchPhase::Started | TouchPhase::Moved => {
+                state.position = Some(ev.position);
+                state.active = true;
+            }
+            TouchPhase::Ended | TouchPhase::Canceled => {
+                state.position = None;
+                state.active = false;
+            }
         }
     }
 }
