@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Slop Survivors (Web)</title>
+    <!-- Copy the entire assets directory next to the built wasm/js -->
+    <link data-trunk rel="copy-dir" href="assets" />
+    <style>
+      html, body { margin: 0; padding: 0; height: 100%; background: #0b0e12; }
+      #bevy { display: block; width: 100vw; height: 100vh; outline: none; }
+    </style>
+  </head>
+  <body>
+    <canvas id="bevy"></canvas>
+    <script type="module">
+      import init from './slop_survivors.js';
+      init();
+    </script>
+  </body>
+  </html>
