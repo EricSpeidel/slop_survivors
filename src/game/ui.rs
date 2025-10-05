@@ -53,6 +53,7 @@ impl Plugin for UiPlugin {
                 levelup_show_overlay.run_if(in_state(GameState::LevelUp)),
                 levelup_handle_buttons.run_if(in_state(GameState::LevelUp)),
                 responsive_levelup_overlay.run_if(in_state(GameState::LevelUp)),
+                levelup_button_visuals.run_if(in_state(GameState::LevelUp)),
             ));
     }
 }
@@ -163,6 +164,54 @@ fn update_hud_bars(stats: Res<PlayerStats>, mut hp_fill: Query<&mut Style, With<
     }
 }
 
+fn levelup_button_visuals(
+    mut q: Query<
+        (
+            &Interaction,
+            &mut BackgroundColor,
+            Option<&BtnMoreDamage>,
+            Option<&BtnMoreFlame>,
+            Option<&BtnFasterFlames>,
+        ),
+        (Changed<Interaction>, With<Button>),
+    >,
+) {
+    for (interaction, mut bg, is_damage, is_flame, is_speed) in q.iter_mut() {
+        let (base, hover, pressed) = if is_damage.is_some() {
+            (
+                Color::rgb(0.32, 0.12, 0.12),
+                Color::rgb(0.42, 0.17, 0.17),
+                Color::rgb(0.52, 0.22, 0.22),
+            )
+        } else if is_flame.is_some() {
+            (
+                Color::rgb(0.12, 0.32, 0.12),
+                Color::rgb(0.17, 0.42, 0.17),
+                Color::rgb(0.22, 0.52, 0.22),
+            )
+        } else if is_speed.is_some() {
+            (
+                Color::rgb(0.12, 0.12, 0.32),
+                Color::rgb(0.17, 0.17, 0.42),
+                Color::rgb(0.22, 0.22, 0.52),
+            )
+        } else {
+            // Fallback palette (shouldn't happen for our buttons)
+            (
+                Color::rgb(0.2, 0.2, 0.2),
+                Color::rgb(0.3, 0.3, 0.3),
+                Color::rgb(0.4, 0.4, 0.4),
+            )
+        };
+
+        *bg = match *interaction {
+            Interaction::Pressed => BackgroundColor(pressed),
+            Interaction::Hovered => BackgroundColor(hover),
+            Interaction::None => BackgroundColor(base),
+        };
+    }
+}
+
 fn update_hud_text(
     stats: Res<PlayerStats>,
     mut hp_text_q: Query<&mut Text, With<HpText>>,
@@ -241,23 +290,25 @@ fn spawn_levelup_overlay(mut commands: Commands, root_entity: Entity) {
         parent.spawn((LevelUpOverlay, NodeBundle {
             style: Style {
                 width: Val::Px(520.0),
-                height: Val::Px(220.0),
+                height: Val::Auto, // let content determine height so buttons are fully inside for touch hit-testing
                 flex_direction: FlexDirection::Column,
                 align_items: AlignItems::Center,
-                justify_content: JustifyContent::SpaceEvenly,
+                justify_content: JustifyContent::FlexStart,
                 row_gap: Val::Px(12.0),
                 margin: UiRect::all(Val::Auto),
+                padding: UiRect::all(Val::Px(12.0)),
                 ..default()
             },
             background_color: BackgroundColor(Color::rgba(0.0, 0.0, 0.0, 0.86)),
+            z_index: ZIndex::Global(100),
             ..default()
         })).with_children(|p| {
             p.spawn((LevelUpText, LevelUpHeaderText, TextBundle::from_section(
                 "Level Up! Choose an upgrade:",
                 TextStyle { font: default(), font_size: 22.0, color: Color::YELLOW }
             )));
-            // Buttons
-            let button_style = Style { width: Val::Px(480.0), height: Val::Px(44.0), ..default() };
+            // Buttons (full-width by default; responsive system may adjust)
+            let button_style = Style { width: Val::Percent(100.0), height: Val::Px(44.0), ..default() };
             p.spawn((BtnMoreDamage, ButtonBundle {
                 style: button_style.clone(),
                 background_color: BackgroundColor(Color::rgb(0.32, 0.12, 0.12)),
