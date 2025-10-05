@@ -91,16 +91,16 @@ fn resize_canvas_to_window(
                         let rect = canvas.get_bounding_client_rect();
                         let css_w = rect.width() as f32;
                         let css_h = rect.height() as f32;
-                        // For robustness across browsers/devices, treat CSS pixels as the source of truth.
-                        // Set the canvas internal buffer to CSS px (not DPR-scaled) and force Bevy scale=1.0.
-                        let buf_w = css_w.round().max(1.0) as u32;
-                        let buf_h = css_h.round().max(1.0) as u32;
-                        canvas.set_width(buf_w);
-                        canvas.set_height(buf_h);
+                        // Use device pixel ratio for internal buffer, let Bevy use DPR for physical coords
+                        let dpr = w.device_pixel_ratio() as f32;
+                        let phys_w = (css_w * dpr).round().max(1.0) as u32;
+                        let phys_h = (css_h * dpr).round().max(1.0) as u32;
+                        canvas.set_width(phys_w);
+                        canvas.set_height(phys_h);
 
-                        // Set Bevy logical resolution to CSS px and lock scale factor to 1.0
+                        // Set Bevy logical resolution to CSS px and allow natural DPR scaling
                         win.resolution.set(css_w, css_h);
-                        win.resolution.set_scale_factor_override(Some(1.0));
+                        win.resolution.set_scale_factor_override(None);
                     }
                 }
             }

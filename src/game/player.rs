@@ -4,6 +4,10 @@ use super::states::GameState;
  
 use bevy::asset::AssetServer;
 use bevy::window::PrimaryWindow;
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen::JsCast;
+#[cfg(target_arch = "wasm32")]
+use web_sys::window as web_window;
 use bevy::input::touch::{TouchInput, TouchPhase};
 
 pub struct PlayerPlugin;
@@ -111,17 +115,35 @@ fn player_movement(
         // 1) Pointer follow: prefer active touch if present, else mouse cursor
         let mut moved_by_pointer = false;
         if let Ok(window) = windows.get_single() {
-            // Use physical pixel coordinates for viewport_to_world_2d
-            let pointer_phys = if touch.active {
-                // TouchInput events provide logical coordinates; convert using DPR
-                touch.position.map(|mut p| {
-                    let dpr = window.resolution.scale_factor() as f32;
-                    p *= dpr;
-                    p
-                })
-            } else {
-                window.physical_cursor_position().map(|p| Vec2::new(p.x as f32, p.y as f32))
+            // Build pointer position in PHYSICAL pixels for viewport_to_world_2d.
+            // Use logical for both mouse and touch, then multiply by scale factor.
+            let mut pointer_phys = {
+                let sf = window.resolution.scale_factor() as f32;
+                if touch.active {
+                    touch.position.map(|p| p * sf)
+                } else {
+                    window.cursor_position().map(|p| p * sf)
+                }
             };
+            // On web, adjust for canvas offset within the page by subtracting its bounding rect origin
+            #[cfg(target_arch = "wasm32")]
+            {
+                if let Some(w) = web_sys::window() {
+                    if let Some(doc) = w.document() {
+                        if let Some(elem) = doc.get_element_by_id("bevy") {
+                            if let Ok(canvas) = elem.dyn_into::<web_sys::HtmlCanvasElement>() {
+                                let rect = canvas.get_bounding_client_rect();
+                                let left = rect.left() as f32 * window.resolution.scale_factor() as f32;
+                                let top = rect.top() as f32 * window.resolution.scale_factor() as f32;
+                                if let Some(ref mut p) = pointer_phys {
+                                    p.x -= left;
+                                    p.y -= top;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             if let Some(cursor_pos) = pointer_phys {
                 if let Ok((camera, cam_tf)) = camera_q.get_single() {
                     if let Some(world_pos) = camera.viewport_to_world_2d(cam_tf, cursor_pos) {
