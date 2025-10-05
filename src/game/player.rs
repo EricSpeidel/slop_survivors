@@ -154,9 +154,14 @@ fn player_movement(
 
 // Track current touch state (screen-space position and active flag)
 #[derive(Resource, Default)]
-struct TouchState {
+pub struct TouchState {
     position: Option<Vec2>,
     active: bool,
+}
+
+impl TouchState {
+    pub fn is_active(&self) -> bool { self.active }
+    pub fn position(&self) -> Option<Vec2> { self.position }
 }
 
 fn touch_capture_system(

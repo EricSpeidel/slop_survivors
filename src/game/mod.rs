@@ -7,6 +7,7 @@ pub mod xp;
 pub mod ui;
 pub mod assets;
 pub mod combat;
+pub mod debug;
 
 use bevy::prelude::*;
 #[cfg(target_arch = "wasm32")]
@@ -30,6 +31,7 @@ impl Plugin for GamePlugin {
                 combat::CombatPlugin,
                 xp::XpPlugin,
                 ui::UiPlugin,
+                debug::DebugPlugin,
             ));
         // Input driven state toggles
         app.add_systems(Update, (
