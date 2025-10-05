@@ -96,10 +96,8 @@ fn resize_canvas_to_window(
             if win.resolution.width() != width || win.resolution.height() != height {
                 win.resolution.set(width, height);
             }
-            // Force a 1.0 scale factor so Bevy logical coordinates match CSS pixels on web
-            if win.scale_factor_override != Some(1.0) {
-                win.scale_factor_override = Some(1.0);
-            }
+            // Force a 1.0 scale factor so Bevy logical coordinates match CSS pixels on web (via resolution API in Bevy 0.13)
+            win.resolution.set_scale_factor_override(Some(1.0));
         }
     }
 }
