@@ -91,22 +91,16 @@ fn resize_canvas_to_window(
                         let rect = canvas.get_bounding_client_rect();
                         let css_w = rect.width() as f32;
                         let css_h = rect.height() as f32;
-                        let css_left = rect.left() as f32;
-                        let css_top = rect.top() as f32;
-                        // Convert to physical pixels using devicePixelRatio
-                        let dpr = w.device_pixel_ratio() as f32;
-                        let phys_w = (css_w * dpr).round().max(1.0);
-                        let phys_h = (css_h * dpr).round().max(1.0);
+                        // For robustness across browsers/devices, treat CSS pixels as the source of truth.
+                        // Set the canvas internal buffer to CSS px (not DPR-scaled) and force Bevy scale=1.0.
+                        let buf_w = css_w.round().max(1.0) as u32;
+                        let buf_h = css_h.round().max(1.0) as u32;
+                        canvas.set_width(buf_w);
+                        canvas.set_height(buf_h);
 
-                        // Ensure the canvas internal buffer matches the physical size
-                        canvas.set_width(phys_w as u32);
-                        canvas.set_height(phys_h as u32);
-                        let logical_w = phys_w / dpr;
-                        let logical_h = phys_h / dpr;
-                        // Always set logical resolution to match measured canvas size to prevent drift
-                        win.resolution.set(logical_w, logical_h);
-                        // Use the device's DPR (no override) so input, canvas, and camera agree
-                        win.resolution.set_scale_factor_override(None);
+                        // Set Bevy logical resolution to CSS px and lock scale factor to 1.0
+                        win.resolution.set(css_w, css_h);
+                        win.resolution.set_scale_factor_override(Some(1.0));
                     }
                 }
             }
