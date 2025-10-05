@@ -4,10 +4,6 @@ use super::states::GameState;
  
 use bevy::asset::AssetServer;
 use bevy::window::PrimaryWindow;
-#[cfg(target_arch = "wasm32")]
-use wasm_bindgen::JsCast;
-#[cfg(target_arch = "wasm32")]
-use web_sys::window as web_window;
 use bevy::input::touch::{TouchInput, TouchPhase};
 
 pub struct PlayerPlugin;
@@ -115,42 +111,18 @@ fn player_movement(
         // 1) Pointer follow: prefer active touch if present, else mouse cursor
         let mut moved_by_pointer = false;
         if let Ok(window) = windows.get_single() {
-            // Build pointer position in PHYSICAL pixels for viewport_to_world_2d.
-            // Use logical for both mouse and touch, then multiply by scale factor.
-            let mut pointer_phys = {
-                let sf = window.resolution.scale_factor() as f32;
-                if touch.active {
-                    touch.position.map(|p| p * sf)
-                } else {
-                    window.cursor_position().map(|p| p * sf)
-                }
-            };
-            // On web, adjust for canvas offset within the page by subtracting its bounding rect origin
-            #[cfg(target_arch = "wasm32")]
-            {
-                if let Some(w) = web_sys::window() {
-                    if let Some(doc) = w.document() {
-                        if let Some(elem) = doc.get_element_by_id("bevy") {
-                            if let Ok(canvas) = elem.dyn_into::<web_sys::HtmlCanvasElement>() {
-                                let rect = canvas.get_bounding_client_rect();
-                                let left = rect.left() as f32 * window.resolution.scale_factor() as f32;
-                                let top = rect.top() as f32 * window.resolution.scale_factor() as f32;
-                                if let Some(ref mut p) = pointer_phys {
-                                    p.x -= left;
-                                    p.y -= top;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            if let Some(cursor_pos) = pointer_phys {
+            let screen_pos = if touch.active { touch.position } else { window.cursor_position() };
+            if let Some(cursor_pos) = screen_pos {
                 if let Ok((camera, cam_tf)) = camera_q.get_single() {
                     if let Some(world_pos) = camera.viewport_to_world_2d(cam_tf, cursor_pos) {
-                        // Snap directly to the pointer/touch world position to remove any perceived offset
-                        tf.translation.x = world_pos.x;
-                        tf.translation.y = world_pos.y;
-                        moved_by_pointer = true;
+                        let player_pos = tf.translation.truncate();
+                        let to_target = world_pos - player_pos;
+                        if to_target.length_squared() > 1.0 { // small deadzone
+                            let dir = to_target.normalize();
+                            tf.translation.x += dir.x * **speed * time.delta_seconds();
+                            tf.translation.y += dir.y * **speed * time.delta_seconds();
+                            moved_by_pointer = true;
+                        }
                     }
                 }
             }
@@ -172,14 +144,9 @@ fn player_movement(
 
 // Track current touch state (screen-space position and active flag)
 #[derive(Resource, Default)]
-pub struct TouchState {
+struct TouchState {
     position: Option<Vec2>,
     active: bool,
-}
-
-impl TouchState {
-    pub fn is_active(&self) -> bool { self.active }
-    pub fn position(&self) -> Option<Vec2> { self.position }
 }
 
 fn touch_capture_system(

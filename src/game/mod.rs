@@ -79,30 +79,17 @@ fn resize_canvas_to_window(
             if let Some(doc) = w.document() {
                 if let Some(elem) = doc.get_element_by_id("bevy") {
                     if let Ok(canvas) = elem.dyn_into::<web_sys::HtmlCanvasElement>() {
-                        // Prefer dynamic viewport units to avoid URL bar shrinking issues
-                        canvas.style().set_property("width", "100dvw").ok();
-                        canvas.style().set_property("height", "100dvh").ok();
-                        canvas.style().set_property("position", "fixed").ok();
-                        canvas.style().set_property("top", "0").ok();
-                        canvas.style().set_property("left", "0").ok();
-                        canvas.style().set_property("touch-action", "none").ok();
-
-                        // Measure the actual on-screen size in CSS pixels
-                        let rect = canvas.get_bounding_client_rect();
-                        let css_w = rect.width() as f32;
-                        let css_h = rect.height() as f32;
-                        // Use device pixel ratio for internal buffer, let Bevy use DPR for physical coords
-                        let dpr = w.device_pixel_ratio() as f32;
-                        let phys_w = (css_w * dpr).round().max(1.0) as u32;
-                        let phys_h = (css_h * dpr).round().max(1.0) as u32;
-                        canvas.set_width(phys_w);
-                        canvas.set_height(phys_h);
-
-                        // Set Bevy logical resolution to CSS px and allow natural DPR scaling
-                        win.resolution.set(css_w, css_h);
-                        win.resolution.set_scale_factor_override(None);
+                        // Set CSS size to fill the viewport (redundant with index.html but safe)
+                        canvas.style().set_property("width", "100vw").ok();
+                        canvas.style().set_property("height", "100vh").ok();
                     }
                 }
+            }
+            let width = w.inner_width().ok().and_then(|v| v.as_f64()).unwrap_or(1280.0) as f32;
+            let height = w.inner_height().ok().and_then(|v| v.as_f64()).unwrap_or(720.0) as f32;
+            // Only update if changed to avoid churn
+            if win.resolution.width() != width || win.resolution.height() != height {
+                win.resolution.set(width, height);
             }
         }
     }
