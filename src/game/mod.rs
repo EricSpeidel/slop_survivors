@@ -82,6 +82,11 @@ fn resize_canvas_to_window(
                         // Set CSS size to fill the viewport (redundant with index.html but safe)
                         canvas.style().set_property("width", "100vw").ok();
                         canvas.style().set_property("height", "100vh").ok();
+                        // Ensure the canvas is anchored to the viewport origin to avoid offset hitboxes
+                        canvas.style().set_property("position", "fixed").ok();
+                        canvas.style().set_property("top", "0").ok();
+                        canvas.style().set_property("left", "0").ok();
+                        canvas.style().set_property("touch-action", "none").ok();
                     }
                 }
             }
@@ -90,6 +95,10 @@ fn resize_canvas_to_window(
             // Only update if changed to avoid churn
             if win.resolution.width() != width || win.resolution.height() != height {
                 win.resolution.set(width, height);
+            }
+            // Force a 1.0 scale factor so Bevy logical coordinates match CSS pixels on web
+            if win.scale_factor_override != Some(1.0) {
+                win.scale_factor_override = Some(1.0);
             }
         }
     }
