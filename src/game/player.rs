@@ -4,7 +4,6 @@ use super::states::GameState;
  
 use bevy::asset::AssetServer;
 use bevy::window::PrimaryWindow;
-use crate::game::CanvasMetrics;
 use bevy::input::touch::{TouchInput, TouchPhase};
 
 pub struct PlayerPlugin;
@@ -107,7 +106,6 @@ fn player_movement(
     mut q: Query<(&MoveSpeed, &mut Transform), With<Player>>,
     time: Res<Time>,
     touch: Res<TouchState>,
-    metrics: Res<CanvasMetrics>,
 ) {
     if let Some((speed, mut tf)) = q.iter_mut().next() {
         // 1) Pointer follow: prefer active touch if present, else mouse cursor
@@ -124,9 +122,7 @@ fn player_movement(
             } else {
                 window.physical_cursor_position().map(|p| Vec2::new(p.x as f32, p.y as f32))
             };
-            if let Some(mut cursor_pos) = pointer_phys {
-                // Subtract the canvas' physical offset to get coordinates relative to the canvas
-                cursor_pos -= metrics.offset_phys;
+            if let Some(cursor_pos) = pointer_phys {
                 if let Ok((camera, cam_tf)) = camera_q.get_single() {
                     if let Some(world_pos) = camera.viewport_to_world_2d(cam_tf, cursor_pos) {
                         let player_pos = tf.translation.truncate();

@@ -17,22 +17,10 @@ use web_sys::window as web_window;
 use wasm_bindgen::JsCast;
 use states::*;
 
-#[derive(Resource, Clone, Copy)]
-pub struct CanvasMetrics {
-    pub dpr: f32,
-    // Canvas top-left offset in PHYSICAL pixels relative to page origin
-    pub offset_phys: Vec2,
-}
-
-impl Default for CanvasMetrics {
-    fn default() -> Self { Self { dpr: 1.0, offset_phys: Vec2::ZERO } }
-}
-
 pub struct GamePlugin;
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
         app.init_state::<GameState>()
-            .init_resource::<CanvasMetrics>()
             .add_plugins((
                 assets::AssetsPlugin,
                 player::PlayerPlugin,
@@ -84,7 +72,6 @@ fn auto_start_loading(state: Res<State<GameState>>, mut next: ResMut<NextState<G
 #[cfg(target_arch = "wasm32")]
 fn resize_canvas_to_window(
     mut windows: Query<&mut bevy::window::Window, With<PrimaryWindow>>,
-    mut metrics: ResMut<CanvasMetrics>,
 ) {
     // Match the logical resolution to the current window size; CSS is already set via index.html to 100vw/100vh
     if let Ok(mut win) = windows.get_single_mut() {
@@ -116,15 +103,8 @@ fn resize_canvas_to_window(
                         canvas.set_height(phys_h as u32);
                         let logical_w = phys_w / dpr;
                         let logical_h = phys_h / dpr;
-                        if (win.resolution.width() - logical_w).abs() > 0.5
-                            || (win.resolution.height() - logical_h).abs() > 0.5
-                        {
-                            // Set the logical resolution in Bevy so that logical * scale = physical
-                            win.resolution.set(logical_w, logical_h);
-                        }
-                        // Update metrics for input conversion
-                        metrics.dpr = dpr;
-                        metrics.offset_phys = Vec2::new(css_left * dpr, css_top * dpr);
+                        // Always set logical resolution to match measured canvas size to prevent drift
+                        win.resolution.set(logical_w, logical_h);
                         // Use the device's DPR (no override) so input, canvas, and camera agree
                         win.resolution.set_scale_factor_override(None);
                     }
