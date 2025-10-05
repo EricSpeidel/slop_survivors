@@ -3,6 +3,7 @@ use bevy::prelude::*;
 use super::states::GameState;
  
 use bevy::asset::AssetServer;
+use bevy::window::PrimaryWindow;
 
 pub struct PlayerPlugin;
 
@@ -97,18 +98,42 @@ fn spawn_player(
 
 fn player_movement(
     kb: Res<ButtonInput<KeyCode>>,
+    windows: Query<&Window, With<PrimaryWindow>>,
+    camera_q: Query<(&Camera, &GlobalTransform)>,
     mut q: Query<(&MoveSpeed, &mut Transform), With<Player>>,
     time: Res<Time>,
 ) {
     if let Some((speed, mut tf)) = q.iter_mut().next() {
-        let mut dir = Vec2::ZERO;
-        if kb.pressed(KeyCode::KeyW) { dir.y += 1.0; }
-        if kb.pressed(KeyCode::KeyS) { dir.y -= 1.0; }
-        if kb.pressed(KeyCode::KeyA) { dir.x -= 1.0; }
-        if kb.pressed(KeyCode::KeyD) { dir.x += 1.0; }
-        if dir.length_squared() > 0.0 { dir = dir.normalize(); }
-        tf.translation.x += dir.x * **speed * time.delta_seconds();
-        tf.translation.y += dir.y * **speed * time.delta_seconds();
+        // 1) Pointer follow if a cursor exists (useful for mobile/touch where browsers map touch to pointer)
+        let mut moved_by_pointer = false;
+        if let Ok(window) = windows.get_single() {
+            if let Some(cursor_pos) = window.cursor_position() {
+                if let Ok((camera, cam_tf)) = camera_q.get_single() {
+                    if let Some(world_pos) = camera.viewport_to_world_2d(cam_tf, cursor_pos) {
+                        let player_pos = tf.translation.truncate();
+                        let to_target = world_pos - player_pos;
+                        if to_target.length_squared() > 1.0 { // small deadzone
+                            let dir = to_target.normalize();
+                            tf.translation.x += dir.x * **speed * time.delta_seconds();
+                            tf.translation.y += dir.y * **speed * time.delta_seconds();
+                            moved_by_pointer = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2) Fallback to keyboard if pointer didn't move us
+        if !moved_by_pointer {
+            let mut dir = Vec2::ZERO;
+            if kb.pressed(KeyCode::KeyW) { dir.y += 1.0; }
+            if kb.pressed(KeyCode::KeyS) { dir.y -= 1.0; }
+            if kb.pressed(KeyCode::KeyA) { dir.x -= 1.0; }
+            if kb.pressed(KeyCode::KeyD) { dir.x += 1.0; }
+            if dir.length_squared() > 0.0 { dir = dir.normalize(); }
+            tf.translation.x += dir.x * **speed * time.delta_seconds();
+            tf.translation.y += dir.y * **speed * time.delta_seconds();
+        }
     }
 }
 
