@@ -17,10 +17,22 @@ use web_sys::window as web_window;
 use wasm_bindgen::JsCast;
 use states::*;
 
+#[derive(Resource, Clone, Copy)]
+pub struct CanvasMetrics {
+    pub dpr: f32,
+    // Canvas top-left offset in PHYSICAL pixels relative to page origin
+    pub offset_phys: Vec2,
+}
+
+impl Default for CanvasMetrics {
+    fn default() -> Self { Self { dpr: 1.0, offset_phys: Vec2::ZERO } }
+}
+
 pub struct GamePlugin;
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
         app.init_state::<GameState>()
+            .init_resource::<CanvasMetrics>()
             .add_plugins((
                 assets::AssetsPlugin,
                 player::PlayerPlugin,
@@ -72,6 +84,7 @@ fn auto_start_loading(state: Res<State<GameState>>, mut next: ResMut<NextState<G
 #[cfg(target_arch = "wasm32")]
 fn resize_canvas_to_window(
     mut windows: Query<&mut bevy::window::Window, With<PrimaryWindow>>,
+    mut metrics: ResMut<CanvasMetrics>,
 ) {
     // Match the logical resolution to the current window size; CSS is already set via index.html to 100vw/100vh
     if let Ok(mut win) = windows.get_single_mut() {
@@ -79,25 +92,44 @@ fn resize_canvas_to_window(
             if let Some(doc) = w.document() {
                 if let Some(elem) = doc.get_element_by_id("bevy") {
                     if let Ok(canvas) = elem.dyn_into::<web_sys::HtmlCanvasElement>() {
-                        // Set CSS size to fill the viewport (redundant with index.html but safe)
-                        canvas.style().set_property("width", "100vw").ok();
-                        canvas.style().set_property("height", "100vh").ok();
-                        // Ensure the canvas is anchored to the viewport origin to avoid offset hitboxes
+                        // Prefer dynamic viewport units to avoid URL bar shrinking issues
+                        canvas.style().set_property("width", "100dvw").ok();
+                        canvas.style().set_property("height", "100dvh").ok();
                         canvas.style().set_property("position", "fixed").ok();
                         canvas.style().set_property("top", "0").ok();
                         canvas.style().set_property("left", "0").ok();
                         canvas.style().set_property("touch-action", "none").ok();
+
+                        // Measure the actual on-screen size in CSS pixels
+                        let rect = canvas.get_bounding_client_rect();
+                        let css_w = rect.width() as f32;
+                        let css_h = rect.height() as f32;
+                        let css_left = rect.left() as f32;
+                        let css_top = rect.top() as f32;
+                        // Convert to physical pixels using devicePixelRatio
+                        let dpr = w.device_pixel_ratio() as f32;
+                        let phys_w = (css_w * dpr).round().max(1.0);
+                        let phys_h = (css_h * dpr).round().max(1.0);
+
+                        // Ensure the canvas internal buffer matches the physical size
+                        canvas.set_width(phys_w as u32);
+                        canvas.set_height(phys_h as u32);
+                        let logical_w = phys_w / dpr;
+                        let logical_h = phys_h / dpr;
+                        if (win.resolution.width() - logical_w).abs() > 0.5
+                            || (win.resolution.height() - logical_h).abs() > 0.5
+                        {
+                            // Set the logical resolution in Bevy so that logical * scale = physical
+                            win.resolution.set(logical_w, logical_h);
+                        }
+                        // Update metrics for input conversion
+                        metrics.dpr = dpr;
+                        metrics.offset_phys = Vec2::new(css_left * dpr, css_top * dpr);
+                        // Use the device's DPR (no override) so input, canvas, and camera agree
+                        win.resolution.set_scale_factor_override(None);
                     }
                 }
             }
-            let width = w.inner_width().ok().and_then(|v| v.as_f64()).unwrap_or(1280.0) as f32;
-            let height = w.inner_height().ok().and_then(|v| v.as_f64()).unwrap_or(720.0) as f32;
-            // Only update if changed to avoid churn
-            if win.resolution.width() != width || win.resolution.height() != height {
-                win.resolution.set(width, height);
-            }
-            // Force a 1.0 scale factor so Bevy logical coordinates match CSS pixels on web (via resolution API in Bevy 0.13)
-            win.resolution.set_scale_factor_override(Some(1.0));
         }
     }
 }

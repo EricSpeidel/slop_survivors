@@ -2,13 +2,18 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Slop Survivors (Web)</title>
     <!-- Copy the entire assets directory next to the built wasm/js -->
     <link data-trunk rel="copy-dir" href="assets" />
     <style>
-      html, body { margin: 0; padding: 0; height: 100%; background: #0b0e12; }
-      #bevy { display: block; width: 100vw; height: 100vh; outline: none; }
+      html, body { margin: 0; padding: 0; height: 100%; background: #0b0e12; overflow: hidden; touch-action: none; }
+      /* Prefer dynamic viewport units to avoid URL bar offset in mobile browsers */
+      #bevy { display: block; width: 100dvw; height: 100dvh; outline: none; }
+      /* Fallback for browsers not supporting dvh/dvw */
+      @supports not (height: 100dvh) {
+        #bevy { width: 100vw; height: 100vh; }
+      }
     </style>
   </head>
   <body>
